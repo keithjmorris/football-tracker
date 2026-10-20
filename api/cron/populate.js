@@ -1,4 +1,4 @@
-// api/cron/populate.js — nightly stats job (moved from bwfc-app, 20 Oct 2026).
+// api/cron/populate.js â€” nightly stats job (moved from bwfc-app, 20 Oct 2026).
 //
 // Runs once a night (see vercel.json). For each club in api/_teams.js it fetches any newly finished
 // matches from Highlightly, works out team and player stats, and saves them to Firebase
@@ -30,14 +30,14 @@ async function fetchHL(path) {
 function findPlayer(players, name) {
   if (!name) return null;
   const simplify = str => str
-    .replace(/[ØøÒÓÔÕÖ]/g, 'o')
-    .replace(/[ÀÁÂÃÄÅàáâãäå]/g, 'a')
-    .replace(/[ÈÉÊËèéêë]/g, 'e')
-    .replace(/[ÌÍÎÏìíîï]/g, 'i')
-    .replace(/[ÙÚÛÜùúûü]/g, 'u')
-    .replace(/[ÝýÿŸ]/g, 'y')
-    .replace(/[Ññ]/g, 'n')
-    .replace(/[Çç]/g, 'c')
+    .replace(/[Ã˜Ã¸Ã’Ã“Ã”Ã•Ã–]/g, 'o')
+    .replace(/[Ã€ÃÃ‚ÃƒÃ„Ã…Ã Ã¡Ã¢Ã£Ã¤Ã¥]/g, 'a')
+    .replace(/[ÃˆÃ‰ÃŠÃ‹Ã¨Ã©ÃªÃ«]/g, 'e')
+    .replace(/[ÃŒÃÃŽÃÃ¬Ã­Ã®Ã¯]/g, 'i')
+    .replace(/[Ã™ÃšÃ›ÃœÃ¹ÃºÃ»Ã¼]/g, 'u')
+    .replace(/[ÃÃ½Ã¿Å¸]/g, 'y')
+    .replace(/[Ã‘Ã±]/g, 'n')
+    .replace(/[Ã‡Ã§]/g, 'c')
     .replace(/-/g, ' ')  // treat hyphens as spaces
     .toLowerCase();
 
@@ -418,7 +418,7 @@ async function populateTeam(db, team) {  // db: { get(docKey), set(docKey, data)
     const fixed = normalise(playerStats, teamMatchStats);
     if (fixed.teamMatchStats.length !== teamMatchStats.length || fixed.changedPlayers) {
       await db.set(docKey, { ...fixed.doc, updatedAt: new Date().toISOString() });
-      return { team: team.name, new: 0, repaired: `${teamMatchStats.length} → ${fixed.teamMatchStats.length}` };
+      return { team: team.name, new: 0, repaired: `${teamMatchStats.length} â†’ ${fixed.teamMatchStats.length}` };
     }
     return { team: team.name, new: 0 };
   }
@@ -464,13 +464,17 @@ async function populateTeam(db, team) {  // db: { get(docKey), set(docKey, data)
 }
 
 
-// ── Firebase (Admin SDK: bypasses the database rules, so only this job can write) ──
+// â”€â”€ Firebase (Admin SDK: bypasses the database rules, so only this job can write) â”€â”€
 let firestore = null;
 function firebaseStore() {
   if (!firestore) {
-    let sa = {};
-    try { sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT || '{}'); } catch { /* reported below */ }
-    if (!sa.client_email || !sa.private_key) throw new Error('FIREBASE_SERVICE_ACCOUNT is missing or not the whole key file');
+    const raw = (process.env.FIREBASE_SERVICE_ACCOUNT || '').trim();
+    if (!raw) throw new Error('FIREBASE_SERVICE_ACCOUNT is not set in this Vercel project');
+    let sa;
+    try { sa = JSON.parse(raw); }
+    catch (e) { throw new Error(`FIREBASE_SERVICE_ACCOUNT is not valid JSON (it should start with { and end with }; it is ${raw.length} characters long, starting "${raw.slice(0, 12)}â€¦")`); }
+    if (!sa.client_email || !sa.private_key) throw new Error('FIREBASE_SERVICE_ACCOUNT is missing client_email or private_key â€” paste the whole downloaded key file');
+    if (sa.project_id && sa.project_id !== 'football-tracker-c9dae') console.warn(`Service account is for project ${sa.project_id}`);
     const admin = require('firebase-admin');
     if (!admin.apps.length) {
       admin.initializeApp({ credential: admin.credential.cert(sa) });
@@ -485,12 +489,13 @@ function firebaseStore() {
 }
 
 module.exports = async function handler(req, res) {
-  if ((req.headers && req.headers.authorization) !== `Bearer ${process.env.CRON_SECRET}` || !process.env.CRON_SECRET) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-  if (!HIGHLIGHTLY_KEY) return res.status(500).json({ error: 'HIGHLIGHTLY_API_KEY is not set' });
+  // Every early stop is written to the log (Vercel â†’ Logs) as well as returned.
+  const fail = (code, msg) => { console.error(`Stats job stopped: ${msg}`); return res.status(code).json({ error: msg }); };
+  if (!process.env.CRON_SECRET) return fail(500, 'CRON_SECRET is not set in this Vercel project');
+  if ((req.headers && req.headers.authorization) !== `Bearer ${process.env.CRON_SECRET}`) return fail(401, 'Unauthorized (wrong or missing CRON_SECRET)');
+  if (!HIGHLIGHTLY_KEY) return fail(500, 'HIGHLIGHTLY_API_KEY is not set');
   let db;
-  try { db = firebaseStore(); } catch (e) { return res.status(500).json({ error: e.message }); }
+  try { db = firebaseStore(); } catch (e) { return fail(500, `Firebase: ${e.message}`); }
 
   // A short report of the run, readable at /api/stats?job=1. It is saved at the start and after
   // every team, so an interrupted run still shows how far it got.
