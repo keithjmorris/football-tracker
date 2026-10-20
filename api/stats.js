@@ -38,6 +38,18 @@ const TEAM_FIELDS = ['id', 'date', 'opponent', 'homeAway', 'competition', 'resul
 const pick = (o, keys) => Object.fromEntries(keys.filter(k => o && o[k] !== undefined).map(k => [k, o[k]]));
 
 module.exports = async function handler(req, res) {
+  // /api/stats?job=1 → the nightly job's report of its last run
+  if (req.query && req.query.job) {
+    const url = `https://firestore.googleapis.com/v1/projects/${PROJECT}/databases/(default)/documents/player_stats/_lastRun` +
+      (API_KEY ? `?key=${encodeURIComponent(API_KEY)}` : '');
+    res.setHeader('Cache-Control', 'no-store');
+    try {
+      const r = await fetch(url, { signal: AbortSignal.timeout(10000) });
+      if (r.status === 404) return res.status(200).json({ lastRun: null, note: 'The nightly job has not saved a run report yet' });
+      if (!r.ok) return res.status(r.status).json({ error: `Stats database returned ${r.status}` });
+      return res.status(200).json({ lastRun: fields((await r.json()).fields) });
+    } catch (e) { return res.status(502).json({ error: String(e && e.message || e) }); }
+  }
   const teamId = parseInt(req.query && req.query.teamId, 10);
   const now = new Date();
   const season = parseInt(req.query && req.query.season, 10) || (now.getUTCMonth() >= 6 ? now.getUTCFullYear() : now.getUTCFullYear() - 1);

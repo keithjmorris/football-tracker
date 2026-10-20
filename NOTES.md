@@ -30,3 +30,16 @@
 - `api/cron/populate.js`, 23:00 UTC daily. Records PL, Championship, League Cup, FA Cup and now Champions League ('CL').
 - Saves with a service account (Admin SDK), so `firestore.rules` can block all public writes.
 - Before this, the Firestore rules were `allow read, write: if true` for everything.
+
+## Match popup (20 Oct 2026)
+- Fetches `/events/{id}`, `/lineups/{id}` and `/statistics/{id}` (cached a week for finished matches).
+- Substitution events: `player` goes OFF, `substituted` comes ON (confirmed: Ben White assisted at 62′,
+  then "player: Ben White, substituted: Jurriën Timber" at 63′). The old app showed these reversed.
+- Line-ups shape (from the old app's working code): {homeTeam, awayTeam} each {formation,
+  initialLineup: [[row of players]], substitutes: [players]}, player {id, name, number, position}.
+- Statistics: array of {team{id}, statistics:[{displayName, value}]}; Possession may be a fraction (0.59).
+- Managers can receive cards (e.g. Daniel Farke) and appear in the cards list.
+
+## Job run report
+- Each nightly run saves `player_stats/_lastRun` {startedAt, finishedAt, season, results[]}.
+  Read it at `/api/stats?job=1`.

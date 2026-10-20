@@ -492,12 +492,19 @@ module.exports = async function handler(req, res) {
   let db;
   try { db = firebaseStore(); } catch (e) { return res.status(500).json({ error: e.message }); }
 
+  const startedAt = new Date().toISOString();
   const results = [];
   for (const team of TEAMS) {
-    try { results.push(await populateTeam(db, team)); }
-    catch (err) { results.push({ team: team.name, error: err.message }); }
+    let r;
+    try { r = await populateTeam(db, team); }
+    catch (err) { r = { team: team.name, error: err.message }; }
+    results.push(r);
+    console.log(JSON.stringify(r));
   }
-  return res.status(200).json({ success: true, season: SEASON, results, timestamp: new Date().toISOString() });
+  const report = { startedAt, finishedAt: new Date().toISOString(), season: SEASON, results };
+  // A short report of the last run, readable at /api/stats?job=1
+  try { await db.set('_lastRun', report); } catch (e) { console.error('Could not save run report:', e.message); }
+  return res.status(200).json({ success: true, ...report });
 };
 
 module.exports._test = { populateTeam, normalise, processMatch, TEAMS, SEASON };

@@ -18,11 +18,11 @@ window.FOOTBALL_CONFIG = {
 
   // Starting links. The part after the address picks the edition:
   //   /        → "main": first visit asks people to pick their teams
-  //   /family  → starts with the family's four teams, no choosing needed
+  //   /family  → starts with the family's four teams, no choosing needed; Arsenal locked
   //   /bwfc    → Bolton, locked (cannot be removed); others can be added
   editions: {
     main: { title: 'Football', preset: [], locked: [] },
-    family: { title: 'Football', preset: [36526, 42483, 58652, 54397], locked: [] }, // Arsenal, Chelsea, Bolton, Leeds
+    family: { title: 'Football', preset: [36526, 42483, 58652, 54397], locked: [36526] }, // Arsenal (locked), Chelsea, Bolton, Leeds
     bwfc: { title: 'Bolton', preset: [58652], locked: [58652] },
   },
 

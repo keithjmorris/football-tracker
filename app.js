@@ -578,22 +578,80 @@
 
   // ── Match detail ────────────────────────────────────────────────────────
   const findMatch = id => allMatches().find(m => String(m.id) === String(id));
-  function eventsHtml(events, m) {
-    const list = Array.isArray(events) ? events : listOf(events);
-    const goals = list.filter(e => /^(goal|penalty|own goal)$/i.test(e.type || ''));
-    const reds = list.filter(e => /red card/i.test(e.type || ''));
-    if (!goals.length && !reds.length) return '<p class="muted">No goals recorded.</p>';
-    const minute = e => parseInt(e.time, 10) || 0;
-    const side = id => [...goals, ...reds].filter(e => e.team && e.team.id === id).sort((a, b) => minute(a) - minute(b))
-      .map(e => {
-        const kind = /red/i.test(e.type) ? '<span class="card-red" title="Red card"></span>'
-          : /own/i.test(e.type) ? '⚽ <small>(og)</small>' : /penalty/i.test(e.type) ? '⚽ <small>(pen)</small>' : '⚽';
-        const assist = e.assist && !/red/i.test(e.type) ? ` <small class="assist">(${esc(e.assist)})</small>` : '';
-        return `<li><span class="ev-min">${esc(e.time)}′</span> ${kind} ${esc(e.player || '')}${assist}</li>`;
-      }).join('');
+  const evMinute = e => parseInt(e.time, 10) || 0;
+
+  // Two columns (home | away) of events, each formatted by `fmt`.
+  function sideLists(list, m, fmt) {
+    const side = id => list.filter(e => e.team && e.team.id === id).sort((a, b) => evMinute(a) - evMinute(b)).map(fmt).join('');
     return `<div class="events"><ul>${side(m.homeTeam.id)}</ul><ul>${side(m.awayTeam.id)}</ul></div>`;
   }
-  function renderSheet(m, events) {
+  function goalsHtml(events, m) {
+    const goals = events.filter(e => /^(goal|penalty|own goal)$/i.test(e.type || ''));
+    if (!goals.length) return '<p class="muted">No goals.</p>';
+    return sideLists(goals, m, e => {
+      const kind = /own/i.test(e.type) ? '⚽ <small>(og)</small>' : /penalty/i.test(e.type) ? '⚽ <small>(pen)</small>' : '⚽';
+      const assist = e.assist ? ` <small class="assist">(${esc(e.assist)})</small>` : '';
+      return `<li><span class="ev-min">${esc(e.time)}′</span> ${kind} ${esc(e.player || '')}${assist}</li>`;
+    });
+  }
+  function cardsHtml(events, m) {
+    const cards = events.filter(e => /card/i.test(e.type || ''));
+    if (!cards.length) return '';
+    return `<section class="detail-block"><h3>Cards</h3>${sideLists(cards, m, e => {
+      const icon = /yellow card\/red card/i.test(e.type) ? '<span class="card-y"></span><span class="card-red"></span>'
+        : /red/i.test(e.type) ? '<span class="card-red"></span>' : '<span class="card-y"></span>';
+      return `<li><span class="ev-min">${esc(e.time)}′</span> ${icon} ${esc(e.player || '')}</li>`;
+    })}</section>`;
+  }
+  // Highlightly substitution events: `player` goes off, `substituted` comes on.
+  function subsHtml(events, m) {
+    const subs = events.filter(e => /substitution/i.test(e.type || ''));
+    if (!subs.length) return '';
+    return `<section class="detail-block"><h3>Substitutions</h3>${sideLists(subs, m, e =>
+      `<li><span class="ev-min">${esc(e.time)}′</span> <span class="sub-on">▲ ${esc(e.substituted || '')}</span><br><span class="sub-off">▼ ${esc(e.player || '')}</span></li>`)}</section>`;
+  }
+  function statsHtml(stats, m) {
+    const arr = Array.isArray(stats) ? stats : listOf(stats);
+    const get = id => { const t = arr.find(x => x.team && x.team.id === id); const o = {}; for (const s of (t && t.statistics) || []) o[s.displayName] = s.value; return o; };
+    const h = get(m.homeTeam.id), a = get(m.awayTeam.id);
+    const pct = v => { const n = Number(v) || 0; return n > 0 && n <= 1 ? Math.round(n * 100) : Math.round(n); };
+    const rows = [
+      ['Possession', pct(h['Possession']), pct(a['Possession']), '%'],
+      ['Shots', (h['Shots on target'] || 0) + (h['Shots off target'] || 0) + (h['Blocked shots'] || 0), (a['Shots on target'] || 0) + (a['Shots off target'] || 0) + (a['Blocked shots'] || 0)],
+      ['Shots on target', h['Shots on target'] || 0, a['Shots on target'] || 0],
+      ['Corners', h['Corners'] || 0, a['Corners'] || 0],
+      ['Fouls', h['Fouls'] || 0, a['Fouls'] || 0],
+      ['Offsides', h['Offsides'] || 0, a['Offsides'] || 0],
+    ].filter(([, x, y]) => x || y);
+    if (!rows.length) return '';
+    return `<section class="detail-block"><h3>Match stats</h3>${rows.map(([label, x, y, unit = '']) => {
+      const tot = (Number(x) || 0) + (Number(y) || 0) || 1;
+      return `<div class="mstat"><span>${x}${unit}</span><span class="mstat-label">${label}</span><span>${y}${unit}</span>
+        <div class="mstat-bar"><i style="width:${(x / tot * 100).toFixed(1)}%"></i><i style="width:${(y / tot * 100).toFixed(1)}%"></i></div></div>`;
+    }).join('')}</section>`;
+  }
+  function lineupsHtml(lu, events, m) {
+    if (!lu || !(lu.homeTeam || lu.awayTeam)) return '';
+    const subs = events.filter(e => /substitution/i.test(e.type || ''));
+    const offAt = {}, onAt = {};
+    for (const e of subs) { if (e.player) offAt[normName(e.player)] = e.time; if (e.substituted) onAt[normName(e.substituted)] = e.time; }
+    const pl = p => {
+      const k = normName(p.name);
+      const mark = offAt[k] ? ` <span class="sub-off">▼${esc(offAt[k])}′</span>` : onAt[k] ? ` <span class="sub-on">▲${esc(onAt[k])}′</span>` : '';
+      return `<li><b>${esc(p.number ?? '')}</b><span>${esc(p.name || '')}${mark}</span></li>`;
+    };
+    const side = (t, team) => {
+      if (!t) return '<div></div>';
+      const xi = (t.initialLineup || []).flat();
+      return `<div><h4>${esc(team.name)}${t.formation ? ` <small>${esc(t.formation)}</small>` : ''}</h4>
+        <ol class="lineup">${xi.map(pl).join('')}</ol>
+        ${(t.substitutes || []).length ? `<h5>Substitutes</h5><ol class="lineup">${t.substitutes.map(pl).join('')}</ol>` : ''}</div>`;
+    };
+    if (!(lu.homeTeam && (lu.homeTeam.initialLineup || []).length) && !(lu.awayTeam && (lu.awayTeam.initialLineup || []).length)) return '';
+    return `<section class="detail-block"><h3>Line-ups</h3><div class="lineups">${side(lu.homeTeam, m.homeTeam)}${side(lu.awayTeam, m.awayTeam)}</div></section>`;
+  }
+
+  function renderSheet(m, d) {
     const ph = phase(m);
     const s = scoreOf(m), p = pensOf(m);
     const showScore = s && ph !== 'upcoming' && ph !== 'postponed';
@@ -602,9 +660,13 @@
       : ph === 'finished' ? '<span class="tag">Full time</span>' : '';
     let detail = '';
     if (ph === 'finished' || ph === 'live') {
-      detail = events === 'loading' ? '<p class="muted">Loading goals…</p>'
-        : events && events.error ? `<p class="muted">Couldn't load goals: ${esc(events.error)}</p>`
-        : events ? `<section class="detail-block"><h3>Goals</h3>${eventsHtml(events, m)}</section>` : '';
+      if (d === 'loading') detail = '<p class="muted">Loading match details…</p>';
+      else if (d) {
+        const events = Array.isArray(d.events) ? d.events : listOf(d.events);
+        detail = (d.eventsError ? `<p class="muted">Couldn't load goals: ${esc(d.eventsError)}</p>`
+          : `<section class="detail-block"><h3>Goals</h3>${goalsHtml(events, m)}</section>${cardsHtml(events, m)}${subsHtml(events, m)}`)
+          + statsHtml(d.stats, m) + lineupsHtml(d.lineups, events, m);
+      }
     }
     $('matchBody').innerHTML = `
       <p class="sheet-kicker" id="matchTitle">${esc(m._comp.name)}</p>
@@ -623,9 +685,18 @@
     const ph = phase(m);
     if (ph !== 'finished' && ph !== 'live') { renderSheet(m, null); return; }
     renderSheet(m, 'loading');
-    let ev;
-    try { ev = (await api('/events/' + m.id)).json; } catch (e) { ev = { error: e.message }; }
-    if (!$('matchOverlay').hidden && $('matchBody').querySelector(`[data-match="${m.id}"]`)) renderSheet(m, ev);
+    const extra = ph === 'finished' ? { _settled: '1' } : {};   // finished matches don't change: cache a week
+    const [ev, lu, st] = await Promise.allSettled([
+      api('/events/' + m.id, extra), api('/lineups/' + m.id, extra), api('/statistics/' + m.id, extra),
+    ]);
+    const d = {
+      events: ev.status === 'fulfilled' ? ev.value.json : [],
+      eventsError: ev.status === 'rejected' ? ev.reason.message : null,
+      lineups: lu.status === 'fulfilled' ? lu.value.json : null,
+      stats: st.status === 'fulfilled' ? st.value.json : null,
+    };
+    if (ev.status === 'fulfilled') state.matchEvents[m.id] = listOf(d.events).length ? (Array.isArray(d.events) ? d.events : listOf(d.events)) : d.events;
+    if (!$('matchOverlay').hidden && $('matchBody').querySelector(`[data-match="${m.id}"]`)) renderSheet(m, d);
   }
 
   // ── Team picker ─────────────────────────────────────────────────────────
