@@ -4,12 +4,11 @@
 window.FOOTBALL_CONFIG = {
   // Competitions shown. Matches in anything else (friendlies etc.) are left out.
   //   table: true if the Tables tab shows it.
-  //   nameMatch: used until the Highlightly ID is confirmed from real data
-  //              (the app learns the ID from the first matching match it sees).
+  //   nameMatch (optional): recognise a competition by name until its ID is known.
   competitions: [
     { key: 'PL', id: 33973, name: 'Premier League', short: 'Premier League', table: true },
     { key: 'ELC', id: 34824, name: 'Championship', short: 'Championship', table: true },
-    { key: 'CL', id: null, nameMatch: /^UEFA Champions League$/i, name: 'Champions League', short: 'Champions League', table: true },
+    { key: 'CL', id: 2486, name: 'Champions League', short: 'Champions League', table: true }, // confirmed from /leagues, 20 Oct 2026
     { key: 'FAC', id: 146305, name: 'FA Cup', short: 'FA Cup', table: false },
     { key: 'EFL', id: 41632, name: 'League Cup', short: 'League Cup', table: false },
   ],

@@ -222,6 +222,7 @@ img { display: block; }
 .events li { padding: 3px 0; }
 .events ul:last-child li { text-align: right; }
 .ev-min { color: var(--muted); font-variant-numeric: tabular-nums; }
+.assist { color: var(--muted); }
 .card-red { display: inline-block; width: 9px; height: 12px; background: #d0021b; border-radius: 2px; vertical-align: -1px; }
 .sb-score em { display: block; font: 600 .8rem var(--font); color: rgba(255,255,255,.8); text-align: center; margin-top: 4px; }
 .pick-group { font: 700 1rem/1.2 var(--display); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 14px 0 8px; }

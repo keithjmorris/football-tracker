@@ -467,7 +467,8 @@
       .map(e => {
         const kind = /red/i.test(e.type) ? '<span class="card-red" title="Red card"></span>'
           : /own/i.test(e.type) ? '⚽ <small>(og)</small>' : /penalty/i.test(e.type) ? '⚽ <small>(pen)</small>' : '⚽';
-        return `<li><span class="ev-min">${esc(e.time)}′</span> ${kind} ${esc(e.player || '')}</li>`;
+        const assist = e.assist && !/red/i.test(e.type) ? ` <small class="assist">(${esc(e.assist)})</small>` : '';
+        return `<li><span class="ev-min">${esc(e.time)}′</span> ${kind} ${esc(e.player || '')}${assist}</li>`;
       }).join('');
     return `<div class="events"><ul>${side(m.homeTeam.id)}</ul><ul>${side(m.awayTeam.id)}</ul></div>`;
   }
