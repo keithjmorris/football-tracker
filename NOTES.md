@@ -22,3 +22,6 @@
 - Competitions recorded: PL, ELC, EFL (League Cup), FAC. Champions League is not recorded yet.
 - The app recomputes every total from the individual match entries and ignores duplicate
   entries (same date + opponent), so a misbehaving job cannot inflate the figures shown.
+- Card minutes are not in the saved stats. When a player is opened, the app fetches `/events/{matchId}`
+  for each match where they were booked (cached a week via `_settled=1`) and matches the card by name
+  (exact, or same surname and first initial, e.g. "A. Collins" = "Aaron Collins").

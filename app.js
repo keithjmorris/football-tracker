@@ -103,6 +103,7 @@
     statsComp: 'all',
     statsSort: 'apps',
     openPlayer: null,
+    matchEvents: {},             // match id → events array | 'loading' | {error}
     showOlder: false,
     loadedAt: null,
     loading: true,
@@ -467,6 +468,30 @@
     if (state.tab === 'stats') render();
   }
 
+  // Card minutes aren't in the saved stats, so they're looked up from each booked match's events.
+  const normName = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z ]+/g, ' ').trim();
+  function samePlayer(a, b) {
+    const x = normName(a).split(/\s+/), y = normName(b).split(/\s+/);
+    if (!x[0] || !y[0]) return false;
+    if (x.join(' ') === y.join(' ')) return true;
+    return x[x.length - 1] === y[y.length - 1] && x[0][0] === y[0][0]; // same surname and first initial
+  }
+  function ensureEvents(matchId) {
+    if (state.matchEvents[matchId]) return;
+    state.matchEvents[matchId] = 'loading';
+    api('/events/' + matchId, { _settled: '1' })
+      .then(({ json }) => { state.matchEvents[matchId] = Array.isArray(json) ? json : listOf(json); })
+      .catch(e => { state.matchEvents[matchId] = { error: e.message }; })
+      .finally(() => { if (state.tab === 'stats') render(); });
+  }
+  function cardMinutes(m, playerName, teamId) {
+    const ev = state.matchEvents[m.id];
+    if (!Array.isArray(ev)) return null;
+    return ev.filter(e => /card/i.test(e.type || '') && (!e.team || e.team.id === teamId) && samePlayer(e.player, playerName))
+      .map(e => /yellow card\/red card/i.test(e.type) ? `second yellow ${e.time}′`
+        : /red/i.test(e.type) ? `red card ${e.time}′` : `yellow card ${e.time}′`);
+  }
+
   function renderStats() {
     if (!state.teams.length) return emptyMsg('Choose your teams first.');
     if (!state.teams.includes(state.statsTeam)) state.statsTeam = state.teams[0];
@@ -518,7 +543,15 @@
         const bits = [m.started ? `started${m.minutesPlayed ? `, ${m.minutesPlayed} min` : ''}` : `sub${m.cameOnMinute ? ` (${m.cameOnMinute}′)` : ''}`];
         if (m.goals) bits.push(`⚽ ${m.goals > 1 ? '×' + m.goals : ''}`.trim());
         if (m.assists) bits.push(`assist${m.assists > 1 ? ' ×' + m.assists : ''}`);
-        if (m.yellowCards) bits.push('yellow card'); if (m.redCards) bits.push('red card');
+        if (m.yellowCards || m.redCards) {
+          if (m.id) ensureEvents(m.id);
+          const mins = m.id ? cardMinutes(m, p.name, id) : null;
+          if (mins && mins.length) bits.push(...mins);
+          else {
+            if (m.yellowCards) bits.push(state.matchEvents[m.id] === 'loading' ? 'yellow card …' : 'yellow card');
+            if (m.redCards) bits.push(state.matchEvents[m.id] === 'loading' ? 'red card …' : 'red card');
+          }
+        }
         return `<li><span>${esc(fDayShort.format(new Date(m.date)))}</span> v ${esc(m.opponent)} (${esc(m.homeAway)}) ${esc(m.score || '')} · ${esc(bits.join(' · '))}</li>`;
       }).join('')}</ul></td></tr>` : '';
       return `<tr class="pl-row${open ? ' open' : ''}" data-player="${esc(p.id)}">

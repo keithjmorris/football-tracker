@@ -154,7 +154,10 @@ module.exports = async function handler(req, res) {
     return res.status(502).json({ error: 'Highlightly returned something that was not JSON', upstream: text.slice(0, 2000) });
   }
 
-  setCache(res, cacheSecondsFor(root, segments, body));
+  // `_settled=1` (never forwarded to Highlightly) marks a request for a finished match's
+  // events, line-ups or statistics, which no longer change: keep those for a week.
+  const settled = req.query && req.query._settled === '1' && ['events', 'lineups', 'statistics'].includes(root);
+  setCache(res, settled ? 7 * DAY : cacheSecondsFor(root, segments, body));
   return res.status(200).json(body);
 };
 
