@@ -1,0 +1,11 @@
+{
+  "name": "football-tracker",
+  "private": true,
+  "description": "Family football app: fixtures, results, tables and stats via Highlightly.",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.5.0"
+  }
+}

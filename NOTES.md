@@ -25,3 +25,8 @@
 - Card minutes are not in the saved stats. When a player is opened, the app fetches `/events/{matchId}`
   for each match where they were booked (cached a week via `_settled=1`) and matches the card by name
   (exact, or same surname and first initial, e.g. "A. Collins" = "Aaron Collins").
+
+## Nightly stats job (moved here from bwfc-app, 20 Oct 2026)
+- `api/cron/populate.js`, 23:00 UTC daily. Records PL, Championship, League Cup, FA Cup and now Champions League ('CL').
+- Saves with a service account (Admin SDK), so `firestore.rules` can block all public writes.
+- Before this, the Firestore rules were `allow read, write: if true` for everything.

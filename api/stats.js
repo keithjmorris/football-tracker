@@ -9,53 +9,8 @@
 const PROJECT = process.env.FIREBASE_PROJECT_ID || 'football-tracker-c9dae';
 const API_KEY = process.env.FIREBASE_API_KEY || '';
 
-// Highlightly id → football-data id (the 44 clubs the nightly stats job records).
-const HL_TO_FD = {
-  58652: 60, // Bolton,
-  46738: 332, // Birmingham,
-  57801: 59, // Blackburn,
-  48440: 387, // Bristol City,
-  38228: 328, // Burnley,
-  37377: 715, // Cardiff,
-  1136869: 348, // Charlton,
-  59503: 342, // Derby,
-  1174313: 1126, // Lincoln,
-  60354: 343, // Middlesbrough,
-  50142: 384, // Millwall,
-  61205: 68, // Norwich,
-  1153889: 325, // Portsmouth,
-  50993: 1081, // Preston,
-  62056: 69, // QPR,
-  53546: 356, // Sheffield United,
-  35675: 340, // Southampton,
-  64609: 70, // Stoke,
-  65460: 72, // Swansea,
-  33122: 346, // Watford,
-  51844: 74, // West Brom,
-  41632: 563, // West Ham,
-  33973: 76, // Wolves,
-  1564071: 404, // Wrexham,
-  36526: 57, // Arsenal,
-  56950: 58, // Aston Villa,
-  30569: 1044, // Bournemouth,
-  47589: 402, // Brentford,
-  44185: 397, // Brighton,
-  42483: 61, // Chelsea,
-  1146230: 1076, // Coventry,
-  45036: 354, // Crystal Palace,
-  39079: 62, // Everton,
-  31420: 63, // Fulham,
-  55248: 322, // Hull City,
-  49291: 349, // Ipswich,
-  54397: 341, // Leeds United,
-  34824: 64, // Liverpool,
-  43334: 65, // Man City,
-  28867: 66, // Man United,
-  29718: 67, // Newcastle,
-  56099: 351, // Nottm Forest,
-  635630: 71, // Sunderland,
-  40781: 73, // Tottenham
-};
+// Highlightly id → football-data id (the clubs the nightly stats job records; see _teams.js).
+const HL_TO_FD = Object.fromEntries(require('./_teams.js').map(t => [t.hlId, t.fdId]));
 
 // Firestore's REST format wraps every value in its type; turn it back into plain JSON.
 function plain(v) {

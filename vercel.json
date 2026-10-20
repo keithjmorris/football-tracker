@@ -1,6 +1,23 @@
 {
   "rewrites": [
-    { "source": "/family", "destination": "/index.html" },
-    { "source": "/bwfc", "destination": "/index.html" }
-  ]
+    {
+      "source": "/family",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/bwfc",
+      "destination": "/index.html"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/populate",
+      "schedule": "0 23 * * *"
+    }
+  ],
+  "functions": {
+    "api/cron/populate.js": {
+      "maxDuration": 300
+    }
+  }
 }

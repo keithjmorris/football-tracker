@@ -21,6 +21,9 @@ Presets and locked teams are set in `config.js`.
 - `explorer.html`: raw data explorer for checking real API responses
 - `api/football.js`: proxy at `/api/football?path=/...`, with an allow-list and shared caching
 - `api/stats.js`: reads a team's season stats from the shared Firebase database (`/api/stats?teamId=…`)
+- `api/cron/populate.js`: the nightly stats job (23:00 UTC), saving to Firebase with a service account
+- `api/_teams.js`: the clubs whose stats are recorded (shared by the two above)
+- `firestore.rules`: the Firebase security rules to publish (public read of stats, no public writes)
 - `vercel.json`: makes `/family` and `/bwfc` open the app
 - `manifest*.webmanifest`: home-screen settings, one per starting link
 - `NOTES.md`: what the real data looks like
@@ -32,5 +35,7 @@ Presets and locked teams are set in `config.js`.
 - `LIVE_CACHE_SECONDS`: optional (default 20)
 - `FIREBASE_API_KEY`: the Firebase web API key (same value as `NEXT_PUBLIC_FIREBASE_API_KEY` in the old apps)
 - `FIREBASE_PROJECT_ID`: optional (default `football-tracker-c9dae`)
+- `FIREBASE_SERVICE_ACCOUNT`: the whole JSON key file of a Firebase service account (for the nightly job)
+- `CRON_SECRET`: a long random string; Vercel sends it when running the nightly job
 
 Keep `.overlay[hidden] { display: none; }` in every version of `style.css`.

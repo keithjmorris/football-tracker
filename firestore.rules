@@ -1,0 +1,18 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Stats: anyone can read them (the apps' Stats pages do).
+    // Nobody can write through these rules. The nightly job writes with a
+    // service account, which Firebase lets through regardless of the rules.
+    match /player_stats/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // Everything else in this project (the old chat and AI summaries): closed.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
