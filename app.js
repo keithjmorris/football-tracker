@@ -98,6 +98,11 @@
     errors: {},                  // label → message
     standings: {},               // comp key → response | {loading} | {error}
     tableComp: store.get('ft.tableComp', 'PL'),
+    stats: {},                   // team id → response | {loading} | {error}
+    statsTeam: null,
+    statsComp: 'all',
+    statsSort: 'apps',
+    openPlayer: null,
     showOlder: false,
     loadedAt: null,
     loading: true,
@@ -445,13 +450,96 @@
         <tbody>${body}</tbody></table></div></section>`;
   }
 
+  // ── Stats (from the shared Firebase records written by the nightly job) ──
+  const COMP_LABEL = { PL: 'Premier League', ELC: 'Championship', EFL: 'League Cup', FAC: 'FA Cup', CL: 'Champions League' };
+  const statKey = m => `${String(m.date || '').slice(0, 10)}|${m.opponent || ''}`;
+  function dedupe(list) { const seen = new Map(); for (const m of list || []) seen.set(statKey(m), m); return [...seen.values()]; }
+
+  async function ensureStats(id) {
+    if (state.stats[id] && !state.stats[id].error) return;
+    state.stats[id] = { loading: true };
+    try {
+      const res = await fetch('/api/stats?' + new URLSearchParams({ teamId: id }));
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || res.statusText);
+      state.stats[id] = json;
+    } catch (e) { state.stats[id] = { error: e.message }; }
+    if (state.tab === 'stats') render();
+  }
+
+  function renderStats() {
+    if (!state.teams.length) return emptyMsg('Choose your teams first.');
+    if (!state.teams.includes(state.statsTeam)) state.statsTeam = state.teams[0];
+    const id = state.statsTeam;
+    const chips = state.teams.length > 1 ? `<div class="chips">${state.teams.map(t =>
+      `<button type="button" class="chip${t === id ? ' on' : ''}" data-stats-team="${t}">${crest({ id: t }, 'xs')}${esc(teamName(t))}</button>`).join('')}</div>` : '';
+    const data = state.stats[id];
+    if (!data || data.loading) { if (!data) ensureStats(id); return chips + emptyMsg('Loading stats…'); }
+    if (data.error) return chips + `<div class="banner">Couldn't load stats: ${esc(data.error)}</div>`;
+    if (data.missing) return chips + emptyMsg(`No stats are available for ${esc(teamName(id))} yet.`);
+
+    const teamMatches = dedupe(data.teamMatches);
+    const comps = [...new Set(teamMatches.map(m => m.competition))].filter(c => COMP_LABEL[c]);
+    if (state.statsComp !== 'all' && !comps.includes(state.statsComp)) state.statsComp = 'all';
+    const inComp = m => state.statsComp === 'all' ? COMP_LABEL[m.competition] : m.competition === state.statsComp;
+    const compChips = comps.length > 1 ? `<div class="chips stat-chips">${[['all', 'All competitions'], ...comps.map(c => [c, COMP_LABEL[c]])]
+      .map(([k, l]) => `<button type="button" class="chip${state.statsComp === k ? ' on' : ''}" data-stats-comp="${k}">${esc(l)}</button>`).join('')}</div>` : '';
+
+    // Team summary: every figure recomputed from the individual matches.
+    const tm = teamMatches.filter(inComp).sort((a, b) => new Date(a.date) - new Date(b.date));
+    const n = tm.length;
+    const sum = f => tm.reduce((t, m) => t + (Number(m[f]) || 0), 0);
+    const count = r => tm.filter(m => m.result === r).length;
+    const withPoss = tm.filter(m => Number(m.possession) > 0);
+    const tile = (v, l) => `<div class="tile"><b>${v}</b><span>${l}</span></div>`;
+    const form = tm.slice(-5).map(m => `<span class="form form-${esc(m.result)}">${esc(m.result)}</span>`).join('');
+    const summary = n ? `<section class="stat-summary">
+      <div class="tiles">
+        ${tile(n, 'Played')}${tile(`${count('W')}-${count('D')}-${count('L')}`, 'Won-Drawn-Lost')}
+        ${tile(`${sum('goalsFor')}-${sum('goalsAgainst')}`, 'Goals for-against')}${tile(tm.filter(m => m.cleanSheet).length, 'Clean sheets')}
+        ${withPoss.length ? tile(Math.round(withPoss.reduce((t, m) => t + Number(m.possession), 0) / withPoss.length) + '%', 'Average possession') : ''}
+        ${tile((sum('shots') / n).toFixed(1), 'Shots per game')}
+      </div>
+      ${form ? `<p class="stat-form">Last ${Math.min(5, n)}: ${form}</p>` : ''}</section>` : emptyMsg('No matches recorded for this selection.');
+
+    // Players: totals recomputed from each player's own match list, for the chosen competitions.
+    const players = (data.players || []).map(p => {
+      const ms = dedupe(p.matches).filter(inComp).sort((a, b) => new Date(b.date) - new Date(a.date));
+      const s = f => ms.reduce((t, m) => t + (Number(m[f]) || 0), 0);
+      const starts = ms.filter(m => m.started).length;
+      return { ...p, ms, starts, subs: ms.length - starts, apps: ms.length, mins: s('minutesPlayed'), goals: s('goals'), assists: s('assists'), yc: s('yellowCards'), rc: s('redCards') };
+    }).filter(p => p.apps > 0);
+    const sorters = { apps: (a, b) => b.apps - a.apps || b.mins - a.mins, goals: (a, b) => b.goals - a.goals || b.assists - a.assists, assists: (a, b) => b.assists - a.assists || b.goals - a.goals, mins: (a, b) => b.mins - a.mins };
+    players.sort((a, b) => (sorters[state.statsSort] || sorters.apps)(a, b) || a.name.localeCompare(b.name));
+    const th = (key, label, cls = '') => `<th class="${cls}"><button type="button" class="sort${state.statsSort === key ? ' on' : ''}" data-sort="${key}">${label}</button></th>`;
+    const rows = players.map(p => {
+      const open = state.openPlayer === p.id;
+      const detail = open ? `<tr class="pl-detail"><td colspan="7"><ul>${p.ms.map(m => {
+        const bits = [m.started ? `started${m.minutesPlayed ? `, ${m.minutesPlayed} min` : ''}` : `sub${m.cameOnMinute ? ` (${m.cameOnMinute}′)` : ''}`];
+        if (m.goals) bits.push(`⚽ ${m.goals > 1 ? '×' + m.goals : ''}`.trim());
+        if (m.assists) bits.push(`assist${m.assists > 1 ? ' ×' + m.assists : ''}`);
+        if (m.yellowCards) bits.push('yellow card'); if (m.redCards) bits.push('red card');
+        return `<li><span>${esc(fDayShort.format(new Date(m.date)))}</span> v ${esc(m.opponent)} (${esc(m.homeAway)}) ${esc(m.score || '')} · ${esc(bits.join(' · '))}</li>`;
+      }).join('')}</ul></td></tr>` : '';
+      return `<tr class="pl-row${open ? ' open' : ''}" data-player="${esc(p.id)}">
+        <td class="team-col"><span class="tname">${esc(p.name)}</span></td>
+        <td>${p.apps}${p.subs ? `<small> (${p.subs})</small>` : ''}</td><td class="wide-only">${p.mins}</td>
+        <td>${p.goals}</td><td>${p.assists}</td><td>${p.yc}</td><td>${p.rc}</td></tr>${detail}`;
+    }).join('');
+    const table = players.length ? `<section class="table-section"><div class="table-wrap"><table class="standings players">
+      <thead><tr><th class="team-col">Player</th>${th('apps', 'Apps')}${th('mins', 'Mins', 'wide-only')}${th('goals', 'G')}${th('assists', 'A')}<th title="Yellow cards">YC</th><th title="Red cards">RC</th></tr></thead>
+      <tbody>${rows}</tbody></table></div>
+      <p class="footnote">Apps (sub appearances in brackets). Tap a column to sort, or a player for their matches.${data.updatedAt ? ` Updated ${esc(fDayShort.format(new Date(data.updatedAt)))}.` : ''}</p></section>` : '';
+    return chips + compChips + summary + table;
+  }
+
   // ── Main render ─────────────────────────────────────────────────────────
   function render() {
     document.querySelectorAll('.tabs [data-tab]').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === state.tab)));
     updateStamp();
     const content = $('content');
     if (state.loading && !state.loadedAt && state.tab !== 'home') { content.innerHTML = emptyMsg('Loading…'); return; }
-    const html = { home: renderHome, fixtures: renderFixtures, results: renderResults, tables: renderTables }[state.tab]();
+    const html = { home: renderHome, fixtures: renderFixtures, results: renderResults, tables: renderTables, stats: renderStats }[state.tab]();
     content.innerHTML = errorBanner() + html;
   }
 
@@ -551,6 +639,8 @@
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closeOverlays(); });
 
   document.addEventListener('click', e => {
+    const row = e.target.closest('tr.pl-row');
+    if (row) { const pid = row.dataset.player; state.openPlayer = String(state.openPlayer) === pid ? null : (isNaN(pid) ? pid : Number(pid)); render(); return; }
     const t = e.target.closest('button, .overlay');
     if (!t) return;
     if (t.classList.contains('overlay')) { if (e.target === t) closeOverlays(); return; }
@@ -563,6 +653,9 @@
     if (t.dataset.filter) { state.filter = t.dataset.filter; render(); return; }
     if (t.dataset.table) { state.tableComp = t.dataset.table; store.set('ft.tableComp', state.tableComp); render(); return; }
     if (t.dataset.pick) return togglePick(t.dataset.pick);
+    if (t.dataset.statsTeam) { state.statsTeam = Number(t.dataset.statsTeam); state.openPlayer = null; render(); return; }
+    if (t.dataset.statsComp) { state.statsComp = t.dataset.statsComp; render(); return; }
+    if (t.dataset.sort) { state.statsSort = t.dataset.sort; render(); return; }
     if (t.dataset.action === 'older') { state.showOlder = true; render(); return; }
     if (t.dataset.action === 'pick') { renderPicker(); openOverlay('pickOverlay'); return; }
     if (t.dataset.match && (t.classList.contains('match') || t.classList.contains('tc-row'))) return openMatch(t.dataset.match);
@@ -571,7 +664,7 @@
   // ── Start ───────────────────────────────────────────────────────────────
   if (ED.title) { document.title = ED.title; $('brandTitle').textContent = ED.title; }
   const fromHash = location.hash.slice(1);
-  state.tab = ['home', 'fixtures', 'results', 'tables'].includes(fromHash) ? fromHash : 'home';
+  state.tab = ['home', 'fixtures', 'results', 'tables', 'stats'].includes(fromHash) ? fromHash : 'home';
   if (EDITION !== 'main' && store.get(TEAMS_KEY, null) === null) store.set(TEAMS_KEY, state.teams);
   if (!state.teams.length && EDITION === 'main') loadAll().then(() => { renderPicker(); openOverlay('pickOverlay'); });
   else loadAll();

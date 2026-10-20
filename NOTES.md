@@ -15,3 +15,10 @@
   assistingPlayerId, substituted}. Types seen: "Goal", "Yellow Card", "Substitution".
   Managers can appear with a yellow card (playerId null). Penalty / Own Goal / Red Card type names are
   from the spec and the old stats script, not yet seen in a real response.
+
+## Stats (Stats tab)
+- Read from Firebase `player_stats/raw_{footballDataId}_{season}`, written nightly by the stats job
+  (currently in bwfc-app). `api/stats.js` maps Highlightly ids to football-data ids for the 44 clubs.
+- Competitions recorded: PL, ELC, EFL (League Cup), FAC. Champions League is not recorded yet.
+- The app recomputes every total from the individual match entries and ignores duplicate
+  entries (same date + opponent), so a misbehaving job cannot inflate the figures shown.
