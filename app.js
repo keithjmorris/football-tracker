@@ -678,13 +678,13 @@
       </div>
       ${detail}`;
   }
-  async function openMatch(id) {
+  async function openMatch(id, quiet = false) {
     const m = findMatch(id);
     if (!m) return;
-    openOverlay('matchOverlay');
+    if (!quiet) openOverlay('matchOverlay');
     const ph = phase(m);
     if (ph !== 'finished' && ph !== 'live') { renderSheet(m, null); return; }
-    renderSheet(m, 'loading');
+    if (!quiet) renderSheet(m, 'loading');
     const extra = ph === 'finished' ? { _settled: '1' } : {};   // finished matches don't change: cache a week
     const [ev, lu, st] = await Promise.allSettled([
       api('/events/' + m.id, extra), api('/lineups/' + m.id, extra), api('/statistics/' + m.id, extra),
@@ -696,7 +696,23 @@
       stats: st.status === 'fulfilled' ? st.value.json : null,
     };
     if (ev.status === 'fulfilled') state.matchEvents[m.id] = listOf(d.events).length ? (Array.isArray(d.events) ? d.events : listOf(d.events)) : d.events;
-    if (!$('matchOverlay').hidden && $('matchBody').querySelector(`[data-match="${m.id}"]`)) renderSheet(m, d);
+    if (!$('matchOverlay').hidden && $('matchBody').querySelector(`[data-match="${m.id}"]`)) {
+      renderSheet(m, d);
+      // While a live match is open, refresh its details every minute.
+      clearTimeout(liveSheetTimer);
+      if (phase(m) === 'live') liveSheetTimer = setTimeout(() => refreshOpenMatch(m.id), 60000);
+    }
+  }
+  let liveSheetTimer = null;
+  async function refreshOpenMatch(id) {
+    if ($('matchOverlay').hidden || !$('matchBody').querySelector(`[data-match="${id}"]`)) return;
+    if (document.hidden) { liveSheetTimer = setTimeout(() => refreshOpenMatch(id), 60000); return; }
+    const m = findMatch(id);
+    if (!m) return;
+    // Pick up the latest score and minute too.
+    await Promise.all(state.teams.filter(t => involves(m, t)).map(t => loadTeamMatches(t).catch(() => {})));
+    render();
+    openMatch(id, true);
   }
 
   // ── Team picker ─────────────────────────────────────────────────────────
@@ -737,6 +753,7 @@
   // ── Overlays and events ─────────────────────────────────────────────────
   function openOverlay(id) { $(id).hidden = false; document.body.classList.add('no-scroll'); }
   function closeOverlays() {
+    clearTimeout(liveSheetTimer);
     document.querySelectorAll('.overlay').forEach(o => { o.hidden = true; });
     document.body.classList.remove('no-scroll');
   }

@@ -492,19 +492,26 @@ module.exports = async function handler(req, res) {
   let db;
   try { db = firebaseStore(); } catch (e) { return res.status(500).json({ error: e.message }); }
 
+  // A short report of the run, readable at /api/stats?job=1. It is saved at the start and after
+  // every team, so an interrupted run still shows how far it got.
   const startedAt = new Date().toISOString();
   const results = [];
+  const saveReport = async status => {
+    try { await db.set('_lastRun', { status, startedAt, updatedAt: new Date().toISOString(), season: SEASON, teamsDone: results.length, teamsTotal: TEAMS.length, results }); }
+    catch (e) { console.error('Could not save run report:', e.message); }
+  };
+  console.log(`Stats job started: ${TEAMS.length} teams, season ${SEASON}`);
+  await saveReport('running');
   for (const team of TEAMS) {
     let r;
     try { r = await populateTeam(db, team); }
     catch (err) { r = { team: team.name, error: err.message }; }
     results.push(r);
     console.log(JSON.stringify(r));
+    await saveReport('running');
   }
-  const report = { startedAt, finishedAt: new Date().toISOString(), season: SEASON, results };
-  // A short report of the last run, readable at /api/stats?job=1
-  try { await db.set('_lastRun', report); } catch (e) { console.error('Could not save run report:', e.message); }
-  return res.status(200).json({ success: true, ...report });
+  await saveReport('finished');
+  return res.status(200).json({ success: true, startedAt, season: SEASON, results });
 };
 
 module.exports._test = { populateTeam, normalise, processMatch, TEAMS, SEASON };

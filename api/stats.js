@@ -45,7 +45,7 @@ module.exports = async function handler(req, res) {
     res.setHeader('Cache-Control', 'no-store');
     try {
       const r = await fetch(url, { signal: AbortSignal.timeout(10000) });
-      if (r.status === 404) return res.status(200).json({ lastRun: null, note: 'The nightly job has not saved a run report yet' });
+      if (r.status === 404) return res.status(200).json({ lastRun: null, note: 'The stats job has not started a run since this report was added' });
       if (!r.ok) return res.status(r.status).json({ error: `Stats database returned ${r.status}` });
       return res.status(200).json({ lastRun: fields((await r.json()).fields) });
     } catch (e) { return res.status(502).json({ error: String(e && e.message || e) }); }
