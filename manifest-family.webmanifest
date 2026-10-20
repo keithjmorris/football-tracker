@@ -1,0 +1,9 @@
+{
+  "name": "Football",
+  "short_name": "Football",
+  "start_url": "/family",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f4efe3",
+  "theme_color": "#14284b"
+}

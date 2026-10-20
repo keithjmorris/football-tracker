@@ -1,0 +1,9 @@
+{
+  "name": "Bolton",
+  "short_name": "Bolton",
+  "start_url": "/bwfc",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f4efe3",
+  "theme_color": "#14284b"
+}

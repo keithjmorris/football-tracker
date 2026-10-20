@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Football</title>
+  <meta name="theme-color" content="#14284b">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Football">
+  <script>
+    // Each starting link gets its own home-screen manifest, so an icon added from /family opens /family.
+    (function () {
+      var p = location.pathname.replace(/\/+$/, '').split('/').pop().toLowerCase();
+      var m = p === 'family' ? '/manifest-family.webmanifest' : p === 'bwfc' ? '/manifest-bwfc.webmanifest' : '/manifest.webmanifest';
+      document.write('<link rel="manifest" href="' + m + '">');
+    })();
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="masthead">
+    <div class="masthead-inner">
+      <div class="brand">
+        <span class="brand-ball" aria-hidden="true"></span>
+        <div>
+          <h1 id="brandTitle">Football</h1>
+          <p class="brand-sub" id="updated">Loading…</p>
+        </div>
+      </div>
+    </div>
+    <nav class="tabs" role="tablist">
+      <button type="button" role="tab" data-tab="home">My teams</button>
+      <button type="button" role="tab" data-tab="fixtures">Fixtures</button>
+      <button type="button" role="tab" data-tab="results">Results</button>
+      <button type="button" role="tab" data-tab="tables">Tables</button>
+    </nav>
+  </header>
+
+  <main class="content" id="content"></main>
+
+  <div class="overlay" id="matchOverlay" hidden>
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="matchTitle">
+      <button type="button" class="sheet-close" data-close aria-label="Close">×</button>
+      <div id="matchBody"></div>
+    </div>
+  </div>
+
+  <div class="overlay" id="pickOverlay" hidden>
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="pickTitle">
+      <button type="button" class="sheet-close" data-close aria-label="Close">×</button>
+      <h2 id="pickTitle" class="sheet-title">Your teams</h2>
+      <p class="sheet-note">Tap to add or remove a team. Your choice is saved on this device.</p>
+      <div id="pickGrid"></div>
+      <button type="button" class="primary-btn" data-close>Done</button>
+    </div>
+  </div>
+
+  <script src="/config.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>
